@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Teach what you know, learn what you need</title>
+  <meta name="description" content="Swap skills with people in your community. Teach guitar, learn Excel. No money, just skills.">
+  <link rel="stylesheet" href="style.css">
+</head><body>
+
+<header class="land-nav">
+  <a class="brand" href="index.html">Skill Swap</a>
+  <a class="navlink" href="#how">How it works</a>
+  <a class="navlink" href="#features">Features</a>
+  <span class="row" id="navButtons">
+    <a class="btn ghost small" href="login.html">Log in</a>
+    <a class="btn small" href="signup.html">Sign up free</a>
+  </span>
+</header>
+
+<main>
+<section class="hero">
+  <div>
+    <span class="eyebrow">Free peer-to-peer learning</span>
+    <h1>Trade what you know for what you want to <em>learn</em>.</h1>
+    <p class="sub">Teach guitar, learn Excel. Teach cooking, learn Spanish. Skill Swap finds people whose skills fit yours, then lets you chat, swap and rate each other. No money needed.</p>
+    <div class="row" id="heroButtons">
+      <a class="btn accent big" href="signup.html">Get started free</a>
+      <a class="btn ghost big" href="login.html">I have an account</a>
+    </div>
+    <div class="trust">
+      <span>Emails stay private</span>
+      <span>Chat inside the app</span>
+      <span>Ratings after every swap</span>
+    </div>
+  </div>
+
+  <div class="hero-art" aria-hidden="true">
+    <div class="mock m1">
+      <div class="person"><span class="avatar" style="--s:48px;background:linear-gradient(135deg,hsl(330 55% 42%),hsl(10 60% 52%))">PR</span>
+        <div class="info"><strong>Priya</strong><div class="meta">Perfect match for you</div></div>
+        <span class="tag perfect" style="margin-left:auto">Perfect match</span></div>
+      <div class="row"><span class="chip teach">Guitar</span><span class="meta">&harr;</span><span class="chip learn">Excel</span>
+        <span class="meta">(they teach / you teach)</span></div>
+      <span class="btn small" style="justify-self:start">Request swap</span>
+    </div>
+    <div class="mock m2">
+      <div class="kicker">Private chat</div>
+      <div class="bubble">Hi! Free Saturday for a guitar lesson?</div>
+      <div class="bubble mine">Yes! I will bring my Excel tips too.</div>
+    </div>
+    <div class="mock m3">
+      <div class="room-top"><span class="room-ico" style="background:linear-gradient(135deg,hsl(200 55% 40%),hsl(240 60% 52%))">G</span>
+        <div><strong>Guitar room</strong><div class="meta">Ask, share, meet people</div></div></div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="how">
+  <h2>How it works</h2>
+  <p class="sub">Three simple steps from sign up to your first lesson.</p>
+  <div class="grid">
+    <div class="card"><div class="step-num">1</div><h3>List your skills</h3>
+      <p class="meta">Add what you can teach and what you want to learn, with your level.</p></div>
+    <div class="card"><div class="step-num">2</div><h3>Get matched</h3>
+      <p class="meta">We find people who teach what you want and want what you teach.</p></div>
+    <div class="card"><div class="step-num">3</div><h3>Swap, chat and rate</h3>
+      <p class="meta">Send a request. When it is accepted, chat privately and rate each other after the swap.</p></div>
+  </div>
+</section>
+
+<section class="section" id="features">
+  <h2>Everything you need to learn together</h2>
+  <p class="sub">Built to be friendly, private and safe.</p>
+  <div class="grid">
+    <div class="card"><span class="kicker">Match</span><h3>Perfect matches</h3>
+      <p class="meta">A smart match finds people who teach what you want and want what you teach.</p></div>
+    <div class="card"><span class="kicker">Chat</span><h3>Private messages</h3>
+      <p class="meta">Chat inside the app once a request is accepted. No phone numbers or emails needed.</p></div>
+    <div class="card"><span class="kicker">Rooms</span><h3>Skill rooms</h3>
+      <p class="meta">Join a group chat for any skill. Ask questions, share tips and meet the community.</p></div>
+    <div class="card"><span class="kicker">Trust</span><h3>Ratings and reviews</h3>
+      <p class="meta">After a swap is completed, both people can rate each other to build trust.</p></div>
+    <div class="card"><span class="kicker">Safety</span><h3>Block anyone</h3>
+      <p class="meta">Blocked people cannot find you, send requests or message you.</p></div>
+    <div class="card"><span class="kicker">Security</span><h3>Secure accounts</h3>
+      <p class="meta">Passwords are stored as hashes. Change or reset yours any time.</p></div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <h2>Ready to swap your first skill?</h2>
+  <p style="margin:12px 0 26px;opacity:.9">Create your free account in under a minute.</p>
+  <a class="btn big" href="signup.html">Sign up free</a>
+</section>
+
+</main>
+
+<footer class="footer">Skill Swap &middot; a community skill exchange project</footer>
+
+<script src="app.js"></script>
+<script>
+  // If you are already logged in, show "Open app" instead of the login buttons
+  fetch('/api/auth/me').then((r) => r.ok ? r.json() : null).then((me) => {
+    if (!me) return;
+    document.getElementById('navButtons').innerHTML = `<a class="btn small" href="browse.html">Open app (${esc(me.name)})</a>`;
+    document.getElementById('heroButtons').innerHTML = '<a class="btn accent big" href="browse.html">Open the app</a>';
+  }).catch(() => {});
+</script>
+</body></html>

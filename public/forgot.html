@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Forgot password</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="login-wrap"><div class="login-card">
+  <a class="brand" href="index.html">Skill Swap</a>
+  <h1>Forgot password</h1>
+  <p class="lede">Enter your email and we will create a reset link that works for 30 minutes.</p>
+  <form id="form" class="form-row" novalidate>
+    <label class="field">Email<input id="email" type="email" autocomplete="email"></label>
+    <button class="btn" type="submit">Create reset link</button>
+  </form>
+  <div id="result" style="margin-top:16px"></div>
+  <div class="auth-links"><a href="login.html">Back to log in</a></div>
+</div></main>
+<script src="app.js"></script>
+<script>
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  document.getElementById('form').onsubmit = async (e) => {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    if (!EMAIL_RE.test(email)) return showMessage('Enter a valid email', 'error');
+    try {
+      const r = await api('/api/auth/forgot', 'POST', { email });
+      let html = `<div class="notice">${esc(r.message)}</div>`;
+      // Demo mode: there is no email server, so the link is shown here instead
+      if (r.resetLink) {
+        html += `<p class="hint" style="margin-top:10px">Demo mode: a real site would email this link.</p>
+                 <div class="notice"><a href="${esc(r.resetLink)}">Open the reset page</a></div>`;
+      }
+      document.getElementById('result').innerHTML = html;
+    } catch (err) { showMessage(err.message, 'error'); }
+  };
+</script>
+</body></html>

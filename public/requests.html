@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Requests</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="page">
+  <div class="page-head">
+    <h1>Swap requests</h1>
+    <p class="lede">When a request is accepted, a private chat opens for both of you.</p>
+  </div>
+  <div class="tabs">
+    <button id="tabIn" class="on">Incoming</button><button id="tabSent">Sent</button>
+  </div>
+  <div id="list" class="grid"><div class="empty">Loading requests...</div></div>
+</main>
+<script src="app.js"></script>
+<script>
+  let data, tab = 'in';
+
+  (async () => {
+    if (!(await requireLogin())) return;
+    renderNavbar('requests.html');
+    load();
+  })();
+
+  async function load() {
+    try { data = await api('/api/requests'); draw(); refreshBadges(); }
+    catch (e) { listError(document.getElementById('list'), e.message, load); }
+  }
+
+  document.getElementById('tabIn').onclick = () => { tab = 'in'; draw(); };
+  document.getElementById('tabSent').onclick = () => { tab = 'sent'; draw(); };
+
+  function draw() {
+    document.getElementById('tabIn').className = tab === 'in' ? 'on' : '';
+    document.getElementById('tabSent').className = tab === 'sent' ? 'on' : '';
+    const rows = tab === 'in' ? data.incoming : data.sent;
+    const box = document.getElementById('list');
+    if (!rows.length) {
+      box.innerHTML = `<div class="empty">${tab === 'in' ? 'No incoming requests yet.' : 'You have not sent any requests yet.'}</div>`;
+      return;
+    }
+    box.innerHTML = rows.map((r) => {
+      // Sentence like: "Ravi wants to learn Guitar from you in exchange for Photography"
+      const text = tab === 'in'
+        ? `<strong>${esc(r.otherName)}</strong> wants to learn <strong>${esc(r.wantedName)}</strong> from you${r.offeredName ? ` in exchange for <strong>${esc(r.offeredName)}</strong>` : ''}`
+        : `You asked <strong>${esc(r.otherName)}</strong> for <strong>${esc(r.wantedName)}</strong>${r.offeredName ? `, offering <strong>${esc(r.offeredName)}</strong>` : ''}`;
+
+      let actions = '';
+      if (r.status === 'pending' && tab === 'in')
+        actions = `<div class="row"><button class="btn small" data-act="accepted" data-id="${r.id}">Accept</button>
+                   <button class="btn small danger" data-act="declined" data-id="${r.id}">Decline</button></div>`;
+      if (r.status === 'pending' && tab === 'sent')
+        actions = `<button class="btn small ghost" data-act="cancel" data-id="${r.id}">Cancel request</button>`;
+      if (r.status === 'accepted' || r.status === 'completed') {
+        actions = '<div class="row">';
+        if (r.conversationId && !r.blocked) actions += `<a class="btn small" href="messages.html?c=${r.conversationId}">Message</a>`;
+        if (r.blocked) actions += '<span class="meta">Chat is off (blocked)</span>';
+        if (r.status === 'accepted') actions += `<button class="btn small ghost" data-act="completed" data-id="${r.id}">Mark swap completed</button>`;
+        if (r.status === 'completed' && !r.reviewed) actions += `<button class="btn small ghost" data-review="${r.id}" data-name="${esc(r.otherName)}">Leave a review</button>`;
+        if (r.status === 'completed' && r.reviewed) actions += '<span class="meta">You reviewed this swap</span>';
+        actions += '</div>';
+      }
+      return `<div class="card">
+        <div class="person">${avatarHtml(r.otherName, 44)}<div class="info"><strong>${esc(r.otherName)}</strong><div class="meta">${dateText(r.createdAt)}</div></div>
+          <span class="tag ${esc(r.status)}" style="margin-left:auto">${esc(r.status)}</span></div>
+        <div>${text}</div>
+        ${r.message ? `<div class="meta">&ldquo;${esc(r.message)}&rdquo;</div>` : ''}
+        ${actions}</div>`;
+    }).join('');
+
+    box.querySelectorAll('[data-act]').forEach((b) => b.onclick = async () => {
+      try {
+        if (b.dataset.act === 'cancel') await api(`/api/requests/${b.dataset.id}`, 'DELETE');
+        else await api(`/api/requests/${b.dataset.id}`, 'PUT', { status: b.dataset.act });
+        showMessage('Done');
+        await load();
+      } catch (e) { showMessage(e.message, 'error'); }
+    });
+    box.querySelectorAll('[data-review]').forEach((b) => b.onclick = () => openReview(b.dataset.review, b.dataset.name));
+  }
+
+  // Star rating pop-up
+  function openReview(requestId, name) {
+    let rating = 0;
+    const overlay = openOverlay(`
+      <h3>Rate your swap with ${esc(name)}</h3>
+      <div class="star-pick" id="stars">${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-n="${n}" aria-label="${n} stars" aria-pressed="false">★</button>`).join('')}</div>
+      <label class="field">Comment (optional, max 300 characters)
+        <textarea id="comment" rows="3" maxlength="300"></textarea></label>
+      <div class="row" style="justify-content:flex-end">
+        <button class="btn ghost" id="cancelBtn">Cancel</button>
+        <button class="btn" id="saveBtn">Submit review</button>
+      </div>`);
+    const buttons = overlay.querySelectorAll('#stars button');
+    buttons.forEach((b) => b.onclick = () => {
+      rating = Number(b.dataset.n);
+      buttons.forEach((x) => { const on = Number(x.dataset.n) <= rating; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(Number(x.dataset.n) === rating)); });
+    });
+    document.getElementById('cancelBtn').onclick = () => overlay.remove();
+    document.getElementById('saveBtn').onclick = async () => {
+      if (!rating) return showMessage('Pick a star rating first', 'error');
+      try {
+        await api(`/api/requests/${requestId}/review`, 'POST', { rating, comment: document.getElementById('comment').value });
+        overlay.remove(); showMessage('Thanks for your review!'); await load();
+      } catch (e) { showMessage(e.message, 'error'); }
+    };
+  }
+</script>
+</body></html>

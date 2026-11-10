@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Matches</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="page">
+  <div class="page-head">
+    <h1>Your matches</h1>
+    <p class="lede">Perfect matches teach what you want and want what you teach.</p>
+  </div>
+  <div id="content"><div class="empty">Loading matches...</div></div>
+</main>
+<script src="app.js"></script>
+<script>
+  let data;
+
+  (async () => {
+    if (!(await requireLogin())) return;
+    renderNavbar('matches.html');
+    load();
+  })();
+
+  async function load() {
+    try { data = await api('/api/matches'); draw(); }
+    catch (e) { listError(document.getElementById('content'), e.message, load); }
+  }
+
+  function draw() {
+    const box = document.getElementById('content');
+    if (data.needsSkills) {
+      box.innerHTML = `<div class="empty">Add at least one skill you teach and one you want to learn.<br><br>
+        <a class="btn small" href="profile.html">Go to My Profile</a></div>`;
+      return;
+    }
+    if (!data.perfect.length && !data.partial.length) {
+      box.innerHTML = '<div class="empty">No matches yet. More people are joining. Try adding more skills.</div>';
+      return;
+    }
+
+    // Perfect matches: one card per person, one line per skill pair
+    const perfect = data.perfect.map((p, i) => `
+      <div class="card perfect">
+        <div class="person">${avatarHtml(p.name, 48)}<div class="info"><h3>${esc(p.name)}</h3><div>${ratingHtml(p.rating)}</div></div>
+          <span class="tag perfect" style="margin-left:auto">Perfect match</span></div>
+        ${p.pairs.map((x) => `<div class="row"><span class="chip teach">${esc(x.theyTeach)}</span><span class="meta">they teach</span> &harr; <span class="meta">you teach</span><span class="chip learn">${esc(x.youTeach)}</span></div>`).join('')}
+        <div class="row">
+          <button class="btn small" data-perfect="${i}">Request swap</button>
+          <button class="btn small ghost" data-view="${p.id}">View profile</button>
+        </div>
+      </div>`).join('');
+
+    // Partial matches: they teach something I want, but don't want what I teach
+    const partial = data.partial.map((p, i) => `
+      <div class="card">
+        <div class="person">${avatarHtml(p.name, 48)}<div class="info"><h3>${esc(p.name)}</h3><div>${ratingHtml(p.rating)}</div></div></div>
+        <div class="row"><span class="kicker">Teaches</span>${p.teaches.map((s) => chipHtml(s, 'teach', false)).join('')}</div>
+        <div class="row">
+          <button class="btn small" data-partial="${i}">Request swap</button>
+          <button class="btn small ghost" data-view="${p.id}">View profile</button>
+        </div>
+      </div>`).join('');
+
+    box.innerHTML =
+      (perfect ? `<h2 style="margin-bottom:14px">Perfect matches</h2><div class="grid" style="margin-bottom:32px">${perfect}</div>` : '') +
+      (partial ? `<h2 style="margin-bottom:14px">Partial matches</h2><div class="grid">${partial}</div>` : '');
+
+    box.querySelectorAll('[data-perfect]').forEach((b) => b.onclick = () => {
+      const p = data.perfect[b.dataset.perfect];
+      openSwapModal({
+        toUserId: p.id, toName: p.name,
+        theirSkills: p.pairs.map((x) => ({ id: x.theyTeachId, name: x.theyTeach })),
+        wantedId: p.pairs[0].theyTeachId, offeredId: p.pairs[0].youTeachId,   // pre-filled
+      });
+    });
+    box.querySelectorAll('[data-partial]').forEach((b) => b.onclick = () => {
+      const p = data.partial[b.dataset.partial];
+      openSwapModal({ toUserId: p.id, toName: p.name, theirSkills: p.teaches });
+    });
+    box.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => openProfileModal(Number(b.dataset.view), load));
+  }
+</script>
+</body></html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Rooms</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="page">
+  <div class="page-head">
+    <h1>Skill rooms</h1>
+    <p class="lede">One group chat for every skill. Join a room to ask questions, share tips and meet people who teach or want to learn the same thing.</p>
+  </div>
+  <div class="filters" style="grid-template-columns:1fr">
+    <input id="search" placeholder="Search rooms (e.g. Guitar)">
+  </div>
+  <div id="list" class="grid"><div class="empty">Loading rooms...</div></div>
+</main>
+<script src="app.js"></script>
+<script>
+  let rooms = [];
+
+  (async () => {
+    if (!(await requireLogin())) return;
+    renderNavbar('rooms.html');
+    load();
+  })();
+
+  async function load() {
+    try { rooms = await api('/api/rooms'); draw(); }
+    catch (e) { listError(document.getElementById('list'), e.message, load); }
+  }
+
+  // Coloured square with the first letter of the skill
+  function icon(name) {
+    return `<span class="room-ico" style="background:${gradientFor(name)}">${esc(name[0].toUpperCase())}</span>`;
+  }
+
+  function draw() {
+    const q = document.getElementById('search').value.trim().toLowerCase();
+    const shown = rooms.filter((r) => r.name.toLowerCase().includes(q));
+    const box = document.getElementById('list');
+    if (!shown.length) { box.innerHTML = '<div class="empty">No rooms match your search.</div>'; return; }
+    box.innerHTML = shown.map((r) => {
+      // Tells the person why this room may interest them
+      const types = (r.mine || '').split(',');
+      const why = types.includes('teach') ? '<span class="chip teach">You teach this</span>'
+        : types.includes('learn') ? '<span class="chip learn">You want to learn this</span>' : '';
+      return `<div class="card room-card ${r.mine ? 'mine' : ''}">
+        <div class="room-top">${icon(r.name)}<div><h3>${esc(r.name)} room</h3>
+          <div class="meta">${r.members} member${r.members === 1 ? '' : 's'}</div></div></div>
+        <div class="row" style="min-height:28px">${why}</div>
+        ${r.joined
+          ? `<div class="row"><a class="btn small" href="messages.html?c=${r.roomId}">Open chat</a>
+               <button class="btn small ghost" data-leave="${r.skillId}">Leave</button></div>`
+          : `<button class="btn small" data-join="${r.skillId}">Join room</button>`}
+      </div>`;
+    }).join('');
+
+    box.querySelectorAll('[data-join]').forEach((b) => b.onclick = async () => {
+      try {
+        const res = await api(`/api/rooms/${b.dataset.join}/join`, 'POST');
+        window.location.href = 'messages.html?c=' + res.conversationId;   // go straight to the chat
+      } catch (e) { showMessage(e.message, 'error'); }
+    });
+    box.querySelectorAll('[data-leave]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/rooms/${b.dataset.leave}/leave`, 'POST'); showMessage('You left the room'); await load(); }
+      catch (e) { showMessage(e.message, 'error'); }
+    });
+  }
+
+  document.getElementById('search').addEventListener('input', draw);
+</script>
+</body></html>

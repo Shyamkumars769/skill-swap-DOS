@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Reset password</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="login-wrap"><div class="login-card">
+  <a class="brand" href="index.html">Skill Swap</a>
+  <h1>New password</h1>
+  <form id="form" class="form-row" novalidate>
+    <label class="field">New password<input id="password" type="password" autocomplete="new-password"></label>
+    <div class="hint">At least 8 characters, with a letter and a number.</div>
+    <label class="field">Confirm new password<input id="confirm" type="password" autocomplete="new-password"></label>
+    <button class="btn" type="submit">Save new password</button>
+  </form>
+  <div class="auth-links"><a href="login.html">Back to log in</a></div>
+</div></main>
+<script src="app.js"></script>
+<script>
+  // The reset link looks like  reset.html?token=...
+  const token = new URLSearchParams(window.location.search).get('token') || '';
+  if (!token) showMessage('This reset link is not valid. Request a new one.', 'error');
+
+  document.getElementById('form').onsubmit = async (e) => {
+    e.preventDefault();
+    const password = document.getElementById('password').value;
+    if (password.length < 8) return showMessage('Password must be at least 8 characters', 'error');
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return showMessage('Password needs a letter and a number', 'error');
+    if (password !== document.getElementById('confirm').value) return showMessage('Passwords do not match', 'error');
+    try {
+      await api('/api/auth/reset', 'POST', { token, password });
+      showMessage('Password changed. Log in with your new password.');
+      setTimeout(() => { window.location.href = 'login.html'; }, 1500);
+    } catch (err) { showMessage(err.message, 'error'); }
+  };
+</script>
+</body></html>

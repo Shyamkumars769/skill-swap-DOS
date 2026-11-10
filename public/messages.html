@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Messages</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="page">
+  <div class="page-head">
+    <h1>Messages</h1>
+    <p class="lede">Private chats open when a swap request is accepted. Group rooms are for everyone interested in a skill.</p>
+  </div>
+  <div class="chat" id="chat">
+    <div class="conv-list" id="convList"></div>
+    <div class="thread">
+      <div class="thread-head" id="head" style="display:none">
+        <button class="btn small ghost only-mobile" id="backBtn">&larr; Chats</button>
+        <span id="headAv"></span>
+        <div class="ttl"><h3 id="title"></h3><div class="meta" id="sub"></div></div>
+        <button class="btn small ghost" id="profileBtn">View profile</button>
+        <button class="btn small danger" id="blockBtn">Block</button>
+        <button class="btn small ghost" id="leaveBtn" style="display:none">Leave room</button>
+      </div>
+      <div class="msgs" id="msgs"><div class="placeholder">Pick a chat on the left to start talking.</div></div>
+      <div class="composer" id="composer" style="display:none">
+        <div class="line">
+          <textarea id="input" rows="2" placeholder="Write a message..."></textarea>
+          <button class="btn" id="sendBtn">Send</button>
+        </div>
+        <div class="counter" id="counter">0 / 500 &middot; Enter to send, Shift+Enter for a new line</div>
+      </div>
+      <div class="composer" id="blockedNote" style="display:none"><div class="meta">You can't send messages in this chat because one of you has blocked the other.</div></div>
+    </div>
+  </div>
+</main>
+<script src="app.js"></script>
+<script>
+  const MAX = 500;
+  let convs = [], currentId = null, lastId = 0, currentOther = null, currentName = '';
+
+  const $ = (id) => document.getElementById(id);
+  let currentSkill = null;
+
+  // Square coloured icon for rooms (the first letter of the skill)
+  function roomIcon(title, size) {
+    return `<span class="room-ico" style="width:${size}px;height:${size}px;background:${gradientFor(title)}">${esc(String(title)[0].toUpperCase())}</span>`;
+  }
+
+  (async () => {
+    if (!(await requireLogin())) return;
+    renderNavbar('messages.html');
+    await loadList();
+    const wanted = Number(new URLSearchParams(window.location.search).get('c'));
+    if (wanted && convs.some((c) => c.id === wanted)) openConv(wanted);
+    // Check for new messages every few seconds (only while this tab is visible)
+    setInterval(() => { if (!document.hidden && currentId) fetchMessages(); }, 3000);
+    setInterval(() => { if (!document.hidden) loadList(); }, 8000);
+  })();
+
+  async function loadList() {
+    try { convs = await api('/api/conversations'); drawList(); }
+    catch (e) { /* try again on the next tick */ }
+  }
+
+  function drawList() {
+    const box = $('convList');
+    if (!convs.length) {
+      box.innerHTML = '<div class="empty">No chats yet. Send a swap request, or <a href="rooms.html">join a skill room</a>.</div>';
+      return;
+    }
+    box.innerHTML = convs.map((c) => `
+      <button class="conv-item ${c.id === currentId ? 'active' : ''}" data-id="${c.id}">
+        ${c.type === 'room' ? roomIcon(c.title, 44) : avatarHtml(c.title, 44)}
+        <div class="txt">
+          <div class="top"><strong>${esc(c.title)}</strong>${c.unread ? `<span class="badge">${c.unread}</span>` : ''}</div>
+          <div class="last">${c.lastBody ? esc(c.lastBody) : 'No messages yet'}</div>
+        </div>
+      </button>`).join('');
+    box.querySelectorAll('[data-id]').forEach((b) => b.onclick = () => openConv(Number(b.dataset.id)));
+  }
+
+  async function openConv(id) {
+    currentId = id; lastId = 0;
+    $('msgs').innerHTML = '';
+    $('chat').classList.add('open');
+    history.replaceState(null, '', 'messages.html?c=' + id);
+    await fetchMessages(true);
+    drawList();
+    $('input').focus();
+  }
+
+  // Get new messages (only the ones after lastId) and add them to the screen
+  async function fetchMessages(first) {
+    const id = currentId;
+    let data;
+    try { data = await api(`/api/conversations/${id}/messages?after=${lastId}`); }
+    catch (e) { return; }
+    if (id !== currentId) return;   // the user switched chats meanwhile
+
+    currentOther = data.otherUserId; currentName = data.title; currentSkill = data.skillId;
+    const isRoom = data.type === 'room';
+    $('head').style.display = '';
+    $('title').textContent = data.title;
+    $('sub').textContent = isRoom ? `${data.members} member${data.members === 1 ? '' : 's'} \u00b7 group room` : 'Private chat';
+    $('headAv').innerHTML = isRoom ? roomIcon(data.title, 42) : avatarHtml(data.title, 42);
+    $('profileBtn').style.display = $('blockBtn').style.display = isRoom ? 'none' : '';
+    $('leaveBtn').style.display = isRoom ? '' : 'none';
+    $('composer').style.display = data.blocked ? 'none' : '';
+    $('blockedNote').style.display = data.blocked ? '' : 'none';
+
+    const box = $('msgs');
+    const nearBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 80;
+    if (first && !data.messages.length) box.innerHTML = '<div class="placeholder">No messages yet. Say hello!</div>';
+    if (data.messages.length) {
+      const placeholder = box.querySelector('.placeholder');
+      if (placeholder) placeholder.remove();
+      data.messages.forEach((m) => {
+        const div = document.createElement('div');
+        div.className = 'bubble' + (m.mine ? ' mine' : '');
+        const who = isRoom && !m.mine ? `<span class="who">${esc(m.senderName || 'Deleted user')}</span>` : '';
+        div.innerHTML = `${who}${esc(m.body)}<span class="time">${esc(timeText(m.createdAt))}</span>`;
+        box.appendChild(div);
+        lastId = m.id;
+      });
+      if (first || nearBottom) box.scrollTop = box.scrollHeight;
+      loadList(); refreshBadges();    // unread counts changed
+    }
+  }
+
+  // Message box: live counter and sending
+  const input = $('input');
+  input.addEventListener('input', () => {
+    const n = input.value.length;
+    $('counter').textContent = `${n} / ${MAX} · Enter to send, Shift+Enter for a new line`;
+    $('counter').classList.toggle('over', n > MAX);
+  });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  });
+  $('sendBtn').onclick = send;
+
+  async function send() {
+    const body = input.value.trim();
+    if (!body) return;
+    if (body.length > MAX) return showMessage(`Messages can be up to ${MAX} characters`, 'error');
+    $('sendBtn').disabled = true;
+    try {
+      await api(`/api/conversations/${currentId}/messages`, 'POST', { body });
+      input.value = ''; input.dispatchEvent(new Event('input'));
+      await fetchMessages();
+      $('msgs').scrollTop = $('msgs').scrollHeight;
+    } catch (e) { showMessage(e.message, 'error'); }
+    $('sendBtn').disabled = false;
+    input.focus();
+  }
+
+  $('backBtn').onclick = () => { $('chat').classList.remove('open'); currentId = null; history.replaceState(null, '', 'messages.html'); drawList(); };
+  $('leaveBtn').onclick = async () => {
+    if (!currentSkill || !window.confirm('Leave this room? You can join again any time.')) return;
+    try {
+      await api(`/api/rooms/${currentSkill}/leave`, 'POST');
+      showMessage('You left the room');
+      $('backBtn').onclick(); await loadList();
+    } catch (e) { showMessage(e.message, 'error'); }
+  };
+  $('profileBtn').onclick = () => { if (currentOther) openProfileModal(currentOther, afterBlock); };
+  $('blockBtn').onclick = async () => { if (currentOther && await blockPerson(currentOther, currentName)) afterBlock(); };
+
+  async function afterBlock() { await fetchMessages(); await loadList(); }
+</script>
+</body></html>

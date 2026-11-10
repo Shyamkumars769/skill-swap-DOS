@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Sign up</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="login-wrap"><div class="login-card">
+  <a class="brand" href="index.html">Skill Swap</a><h1>Create account</h1>
+  <p class="lede">Create your free account.</p>
+  <form id="form" class="form-row" novalidate>
+    <label class="field">Name<input id="name" autocomplete="name" maxlength="50"></label>
+    <label class="field">Email<input id="email" type="email" autocomplete="email"></label>
+    <label class="field">Password<input id="password" type="password" autocomplete="new-password"></label>
+    <div class="hint">At least 8 characters, with a letter and a number.</div>
+    <label class="field">Confirm password<input id="confirm" type="password" autocomplete="new-password"></label>
+    <button class="btn" type="submit">Create account</button>
+  </form>
+  <div class="auth-links"><span>Already have an account? <a href="login.html">Log in</a></span></div>
+</div></main>
+<script src="app.js"></script>
+<script>
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  document.getElementById('form').onsubmit = async (e) => {
+    e.preventDefault();
+    const name = document.getElementById('name').value.trim();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirm = document.getElementById('confirm').value;
+    // Quick checks in the browser (the server checks everything again)
+    if (name.length < 2) return showMessage('Name must be at least 2 characters', 'error');
+    if (!EMAIL_RE.test(email)) return showMessage('Enter a valid email', 'error');
+    if (password.length < 8) return showMessage('Password must be at least 8 characters', 'error');
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) return showMessage('Password needs a letter and a number', 'error');
+    if (password !== confirm) return showMessage('Passwords do not match', 'error');
+    try {
+      await api('/api/auth/signup', 'POST', { name, email, password });
+      window.location.href = 'profile.html';   // new users go add their skills
+    } catch (err) { showMessage(err.message, 'error'); }
+  };
+</script>
+</body></html>

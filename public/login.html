@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Log in</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="login-wrap"><div class="login-card">
+  <a class="brand" href="index.html">Skill Swap</a><h1>Log in</h1>
+  <p class="lede">Welcome back. Log in to continue.</p>
+  <form id="form" class="form-row" novalidate>
+    <label class="field">Email<input id="email" type="email" autocomplete="email"></label>
+    <label class="field">Password<input id="password" type="password" autocomplete="current-password"></label>
+    <button class="btn" type="submit">Log in</button>
+  </form>
+  <div class="auth-links">
+    <a href="forgot.html">Forgot password?</a>
+    <span>New here? <a href="signup.html">Sign up</a></span>
+  </div>
+  <div class="demo" id="demo" style="display:none">
+    <div>Demo accounts (click one to log in). Password: <strong id="demoPw"></strong></div>
+    <div id="demoList"></div>
+  </div>
+</div></main>
+<script src="app.js"></script>
+<script>
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  async function login(email, password) {
+    if (!EMAIL_RE.test(email.trim())) return showMessage('Enter a valid email', 'error');
+    if (!password) return showMessage('Enter your password', 'error');
+    try {
+      await api('/api/auth/login', 'POST', { email, password });
+      window.location.href = 'browse.html';
+    } catch (e) { showMessage(e.message, 'error'); }
+  }
+
+  document.getElementById('form').onsubmit = (e) => {
+    e.preventDefault();
+    login(document.getElementById('email').value, document.getElementById('password').value);
+  };
+
+  // Demo accounts (only shown when the server is in demo mode)
+  api('/api/auth/demo').then((d) => {
+    if (!d.accounts.length) return;
+    document.getElementById('demo').style.display = '';
+    document.getElementById('demoPw').textContent = d.password;
+    document.getElementById('demoList').innerHTML = d.accounts.map((a) =>
+      `<div><button data-email="${esc(a.email)}">${esc(a.email)}</button> (${esc(a.name)})</div>`).join('');
+    document.querySelectorAll('#demoList button').forEach((b) => b.onclick = () => login(b.dataset.email, d.password));
+  }).catch(() => {});
+</script>
+</body></html>

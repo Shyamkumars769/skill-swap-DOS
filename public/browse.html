@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - Browse</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="page">
+  <div class="page-head">
+    <h1>Browse people</h1>
+    <p class="lede">Find someone who can teach what you want to learn.</p>
+  </div>
+  <div class="filters">
+    <input id="skillInput" placeholder="Search a skill (e.g. Guitar)">
+    <select id="levelSelect">
+      <option value="">Any level</option>
+      <option>Beginner</option><option>Intermediate</option><option>Expert</option>
+    </select>
+  </div>
+  <div id="results" class="grid"><div class="empty">Loading people...</div></div>
+</main>
+<script src="app.js"></script>
+<script>
+  let people = [];
+
+  (async () => {
+    if (!(await requireLogin())) return;
+    renderNavbar('browse.html');
+    load();
+  })();
+
+  // Ask the backend for people matching the search boxes
+  async function load() {
+    const skill = encodeURIComponent(document.getElementById('skillInput').value.trim());
+    const level = encodeURIComponent(document.getElementById('levelSelect').value);
+    try {
+      people = await api(`/api/browse?skill=${skill}&level=${level}`);
+      draw();
+    } catch (e) { listError(document.getElementById('results'), e.message, load); }
+  }
+
+  function chips(list, kind) {
+    return list.length ? list.map((s) => chipHtml(s, kind)).join('') : '<span class="meta">Nothing listed</span>';
+  }
+
+  function draw() {
+    const box = document.getElementById('results');
+    if (!people.length) {
+      box.innerHTML = '<div class="empty">No one found. Try another skill or level.</div>';
+      return;
+    }
+    box.innerHTML = people.map((p, i) => `
+      <div class="card">
+        <div class="person">${avatarHtml(p.name, 48)}<div class="info"><h3>${esc(p.name)}</h3><div>${ratingHtml(p.rating)}</div></div></div>
+        <div class="row"><span class="kicker">Teaches</span>${chips(p.teaches, 'teach')}</div>
+        <div class="row"><span class="kicker">Wants to learn</span>${chips(p.learns, 'learn')}</div>
+        <div class="row">
+          ${p.teaches.length ? `<button class="btn small" data-swap="${i}">Request swap</button>` : ''}
+          <button class="btn small ghost" data-view="${i}">View profile</button>
+        </div>
+      </div>`).join('');
+    box.querySelectorAll('[data-swap]').forEach((b) => b.onclick = () => {
+      const p = people[b.dataset.swap];
+      openSwapModal({ toUserId: p.id, toName: p.name, theirSkills: p.teaches });
+    });
+    box.querySelectorAll('[data-view]').forEach((b) => b.onclick = () => openProfileModal(people[b.dataset.view].id, load));
+  }
+
+  // Search while typing (small delay so we don't call the server on every key)
+  let timer;
+  document.getElementById('skillInput').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(load, 300); });
+  document.getElementById('levelSelect').addEventListener('change', load);
+</script>
+</body></html>

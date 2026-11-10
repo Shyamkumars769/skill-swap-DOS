@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Skill Swap - My Profile</title><link rel="stylesheet" href="style.css">
+</head><body>
+<main class="page">
+  <div class="page-head"><h1>My profile &amp; settings</h1><p class="lede">Your skills drive your matches. Keep them up to date.</p></div>
+
+  <div class="card" style="margin-bottom:16px">
+    <div id="info"></div>
+    <form id="editForm" class="form-row" style="display:none">
+      <label class="field">Name<input id="editName" maxlength="50"></label>
+      <div class="row"><button class="btn small" type="submit">Save</button>
+        <button class="btn small ghost" type="button" id="cancelEdit">Cancel</button></div>
+    </form>
+  </div>
+
+  <div id="emptyHint" class="empty" style="display:none;margin-bottom:16px">Add at least one teach and one learn skill to get matches.</div>
+
+  <div class="two-col" style="margin-bottom:16px">
+    <div class="card"><h2>I can teach</h2><div id="teachList" class="row"></div><div id="teachForm"></div></div>
+    <div class="card"><h2>I want to learn</h2><div id="learnList" class="row"></div><div id="learnForm"></div></div>
+  </div>
+
+  <div class="two-col" style="margin-bottom:16px">
+    <div class="card">
+      <h2>Change password</h2>
+      <form id="pwForm" class="form-row" novalidate>
+        <label class="field">Current password<input id="curPw" type="password" autocomplete="current-password"></label>
+        <label class="field">New password<input id="newPw" type="password" autocomplete="new-password"></label>
+        <label class="field">Confirm new password<input id="newPw2" type="password" autocomplete="new-password"></label>
+        <div class="hint">At least 8 characters, with a letter and a number. Other devices will be logged out.</div>
+        <button class="btn small" type="submit" style="justify-self:start">Change password</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Blocked people</h2>
+      <div id="blockedList" class="form-row"></div>
+    </div>
+  </div>
+
+  <div class="card danger-zone">
+    <h2>Delete account</h2>
+    <p class="meta">This permanently deletes your profile, skills, requests, reviews and chats. It cannot be undone.</p>
+    <form id="delForm" class="row" novalidate>
+      <input id="delPw" type="password" placeholder="Enter your password to confirm" style="max-width:300px" autocomplete="current-password">
+      <button class="btn small danger" type="submit">Delete my account</button>
+    </form>
+  </div>
+</main>
+<script src="app.js"></script>
+<script>
+  let profile, blocked = [], allSkills = [];
+
+  (async () => {
+    if (!(await requireLogin())) return;
+    renderNavbar('profile.html');
+    try { allSkills = await api('/api/skills'); } catch (e) { showMessage(e.message, 'error'); }
+    buildForm('teach'); buildForm('learn');
+    await load();
+  })();
+
+  async function load() {
+    try {
+      profile = await api('/api/me/profile');
+      blocked = await api('/api/blocks');
+      draw();
+    } catch (e) { showMessage(e.message, 'error'); }
+  }
+
+  function draw() {
+    const u = profile.user;
+    document.getElementById('info').innerHTML = `
+      <div class="row" style="justify-content:space-between">
+        <div class="person">${avatarHtml(u.name, 60)}<div class="info"><h2>${esc(u.name)}</h2><div class="meta">${esc(u.email)} &middot; only you can see your email</div><div>${ratingHtml(profile.rating)}</div></div></div>
+        <button class="btn small ghost" id="editBtn">Edit name</button>
+      </div>`;
+    document.getElementById('editBtn').onclick = () => {
+      document.getElementById('editName').value = u.name;
+      document.getElementById('editForm').style.display = '';
+    };
+    ['teach', 'learn'].forEach((type) => {
+      const list = profile[type];
+      document.getElementById(type + 'List').innerHTML = list.length
+        ? list.map((s) => `<span class="chip ${type}">${esc(s.name)} <span class="meta">${esc(s.level)}</span>
+            <button title="Remove" data-us="${s.userSkillId}">&times;</button></span>`).join('')
+        : '<span class="meta">Nothing added yet</span>';
+    });
+    document.querySelectorAll('[data-us]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/me/skills/${b.dataset.us}`, 'DELETE'); await load(); }
+      catch (e) { showMessage(e.message, 'error'); }
+    });
+    document.getElementById('emptyHint').style.display = (profile.teach.length && profile.learn.length) ? 'none' : '';
+
+    document.getElementById('blockedList').innerHTML = blocked.length
+      ? blocked.map((b) => `<div class="row" style="justify-content:space-between"><span>${esc(b.name)}</span>
+          <button class="btn small ghost" data-unblock="${b.id}">Unblock</button></div>`).join('')
+      : '<span class="meta">You have not blocked anyone.</span>';
+    document.querySelectorAll('[data-unblock]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/blocks/${b.dataset.unblock}`, 'DELETE'); showMessage('Unblocked'); await load(); }
+      catch (e) { showMessage(e.message, 'error'); }
+    });
+  }
+
+  // Edit name
+  document.getElementById('cancelEdit').onclick = () => document.getElementById('editForm').style.display = 'none';
+  document.getElementById('editForm').onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/me', 'PUT', { name: document.getElementById('editName').value });
+      showMessage('Name updated');
+      window.location.reload();   // refresh the navbar too
+    } catch (err) { showMessage(err.message, 'error'); }
+  };
+
+  // Change password
+  document.getElementById('pwForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const currentPassword = document.getElementById('curPw').value;
+    const newPassword = document.getElementById('newPw').value;
+    if (newPassword !== document.getElementById('newPw2').value) return showMessage('New passwords do not match', 'error');
+    try {
+      await api('/api/auth/change-password', 'POST', { currentPassword, newPassword });
+      e.target.reset();
+      showMessage('Password changed');
+    } catch (err) { showMessage(err.message, 'error'); }
+  };
+
+  // Delete account
+  document.getElementById('delForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const password = document.getElementById('delPw').value;
+    if (!password) return showMessage('Enter your password to confirm', 'error');
+    if (!window.confirm('Delete your account for good? This cannot be undone.')) return;
+    try {
+      await api('/api/auth/account', 'DELETE', { password });
+      window.location.href = 'index.html';
+    } catch (err) { showMessage(err.message, 'error'); }
+  };
+
+  // The "Add skill" form under each column
+  function buildForm(type) {
+    const box = document.getElementById(type + 'Form');
+    box.innerHTML = `
+      <div class="form-row" style="margin-top:8px">
+        <label class="field">Skill
+          <select id="${type}Skill">
+            ${allSkills.map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}
+            <option value="new">Other (type a new skill)</option>
+          </select></label>
+        <input id="${type}New" placeholder="New skill name" maxlength="40" style="display:none">
+        <label class="field">Level
+          <select id="${type}Level"><option>Beginner</option><option>Intermediate</option><option>Expert</option></select></label>
+        <button class="btn small" id="${type}Add">Add</button>
+      </div>`;
+    const sel = document.getElementById(type + 'Skill');
+    sel.onchange = () => document.getElementById(type + 'New').style.display = sel.value === 'new' ? '' : 'none';
+    document.getElementById(type + 'Add').onclick = async () => {
+      const body = { type, level: document.getElementById(type + 'Level').value };
+      if (sel.value === 'new') body.skillName = document.getElementById(type + 'New').value;
+      else body.skillId = Number(sel.value);
+      try {
+        await api('/api/me/skills', 'POST', body);
+        if (sel.value === 'new') {            // refresh dropdowns so the new skill appears
+          allSkills = await api('/api/skills'); buildForm('teach'); buildForm('learn');
+        }
+        showMessage('Skill added');
+        await load();
+      } catch (e) { showMessage(e.message, 'error'); }
+    };
+  }
+</script>
+</body></html>
